@@ -1,7 +1,53 @@
 describe('Basic user flow for Website', () => {
+  const shopURL = 'https://cse110-sp25.github.io/CSE110-Shop/';
+
+  async function waitForProducts() {
+    await page.waitForFunction(() => {
+      return document.querySelectorAll('product-item').length === 20;
+    });
+
+    await page.waitForFunction(() => {
+      return Array.from(document.querySelectorAll('product-item')).every(item => {
+        return item.shadowRoot && item.shadowRoot.querySelector('button');
+      });
+    });
+  }
+
+  async function clickButtonsWithText(text) {
+    await page.evaluate((buttonText) => {
+      const productItems = Array.from(document.querySelectorAll('product-item'));
+      productItems.forEach((item) => {
+        const button = item.shadowRoot.querySelector('button');
+
+        if (button.innerText === buttonText) {
+          button.click();
+        }
+      });
+    }, text);
+  }
+
+  async function allButtonsHaveText(text) {
+    return page.evaluate((buttonText) => {
+      const productItems = Array.from(document.querySelectorAll('product-item'));
+
+      return productItems.every((item) => {
+        return item.shadowRoot.querySelector('button').innerText === buttonText;
+      });
+    }, text);
+  }
+
+  async function getCartCount() {
+    return page.$eval('#cart-count', cartCount => cartCount.innerText);
+  }
+
   // First, visit the lab 7 website
   beforeAll(async () => {
-    await page.goto('https://cse110-sp25.github.io/CSE110-Shop/');
+    await page.goto(shopURL);
+    await page.evaluate(() => {
+      localStorage.clear();
+    });
+    await page.reload();
+    await waitForProducts();
   });
 
   // Each it() call is a separate test
@@ -19,9 +65,7 @@ describe('Basic user flow for Website', () => {
   });
 
   // Check to make sure that all 20 <product-item> elements have data in them
-  // We use .skip() here because this test has a TODO that has not been completed yet.
-  // Make sure to remove the .skip after you finish the TODO. 
-  it.skip('Make sure <product-item> elements are populated', async () => {
+  it('Make sure <product-item> elements are populated', async () => {
     console.log('Checking to make sure <product-item> elements are populated...');
 
     // Start as true, if any don't have data, swap to false
@@ -31,21 +75,11 @@ describe('Basic user flow for Website', () => {
     const prodItemsData = await page.$$eval('product-item', prodItems => {
       return prodItems.map(item => {
         // Grab all of the json data stored inside
-        return data = item.data;
+        return item.data;
       });
     });
 
-    console.log(`Checking product item 1/${prodItemsData.length}`);
-
-    // Make sure the title, price, and image are populated in the JSON
-    firstValue = prodItemsData[0];
-    if (firstValue.title.length == 0) { allArePopulated = false; }
-    if (firstValue.price.length == 0) { allArePopulated = false; }
-    if (firstValue.image.length == 0) { allArePopulated = false; }
-
-    // Expect allArePopulated to still be true
-    expect(allArePopulated).toBe(true);
-
+  
     /**
     **** TODO - STEP 1 ****
     * Right now this function is only checking the first <product-item> it found, make it so that
@@ -53,11 +87,29 @@ describe('Basic user flow for Website', () => {
     * Remove the .skip from this it once you are finished writing this test.
     */
 
+    for (let i = 0; i < prodItemsData.length; i++) {
+      let currentProduct = prodItemsData[i];
+
+      if (!currentProduct.title || currentProduct.title.length == 0) { 
+        allArePopulated = false; 
+      }
+
+      if (currentProduct.price == undefined || currentProduct.price.toString().length == 0) {
+        allArePopulated = false;
+      }
+
+      if (!currentProduct.image || currentProduct.image.length == 0) {
+        allArePopulated = false;
+      }
+    }
+
+    expect(allArePopulated).toBe(true);
+
   }, 10000);
 
   // Check to make sure that when you click "Add to Cart" on the first <product-item> that
   // the button swaps to "Remove from Cart"
-  it.skip('Clicking the "Add to Cart" button should change button text', async () => {
+  it('Clicking the "Add to Cart" button should change button text', async () => {
     console.log('Checking the "Add to Cart" button...');
 
     /**
@@ -68,12 +120,25 @@ describe('Basic user flow for Website', () => {
      * Once you have the innerText property, use innerText.jsonValue() to get the text value of it
      * Remember to remove the .skip from this it once you are finished writing this test.
      */
+    const productItem = await page.$('product-item');
+
+    const shadowRoot = await productItem.getProperty('shadowRoot');
+
+    const button = await shadowRoot.$('button');
+
+    await button.click();
+
+    const innerTextProperty = await button.getProperty('innerText');
+
+    const textValue = await innerTextProperty.jsonValue();
+
+    expect(textValue).toBe('Remove from Cart');
 
   }, 2500);
 
   // Check to make sure that after clicking "Add to Cart" on every <product-item> that the Cart
   // number in the top right has been correctly updated
-  it.skip('Checking number of items in cart on screen', async () => {
+  it('Checking number of items in cart on screen', async () => {
     console.log('Checking number of items in cart on screen...');
 
     /**
@@ -84,10 +149,30 @@ describe('Basic user flow for Website', () => {
      * Remember to remove the .skip from this it once you are finished writing this test.
      */
 
-  }, 10000);
+    const productItems = await page.$$('product-item');
+
+    for (let i = 0; i < productItems.length; i++) {
+      const shadowRoot = await productItems[i].getProperty('shadowRoot');
+
+      const button = await shadowRoot.$('button');
+
+      const innerText = await (await button.getProperty('innerText')).jsonValue();
+
+      if (innerText === 'Add to Cart') {
+        await button.click();
+      }
+    }
+
+    const cartCountHandle = await page.$('#cart-count');
+    const cartCountText = await (await cartCountHandle.getProperty('innerText')).jsonValue();
+
+    expect(cartCountText).toBe('20');
+  }, 30000);
+
+  
 
   // Check to make sure that after you reload the page it remembers all of the items in your cart
-  it.skip('Checking number of items in cart on screen after reload', async () => {
+  it('Checking number of items in cart on screen after reload', async () => {
     console.log('Checking number of items in cart on screen after reload...');
 
     /**
@@ -97,11 +182,20 @@ describe('Basic user flow for Website', () => {
      * Also check to make sure that #cart-count is still 20
      * Remember to remove the .skip from this it once you are finished writing this test.
      */
+    await page.reload();
+    await waitForProducts();
+    const allAreRemove = await allButtonsHaveText('Remove from Cart');
+    
+    expect(allAreRemove).toBe(true);
+
+    const cartCountText = await getCartCount();
+
+    expect(cartCountText).toBe('20');
 
   }, 10000);
 
   // Check to make sure that the cart in localStorage is what you expect
-  it.skip('Checking the localStorage to make sure cart is correct', async () => {
+  it('Checking the localStorage to make sure cart is correct', async () => {
 
     /**
      **** TODO - STEP 5 **** 
@@ -109,12 +203,16 @@ describe('Basic user flow for Website', () => {
        '[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]', check to make sure it is
      * Remember to remove the .skip from this it once you are finished writing this test.
      */
+    const localStorageCart = await page.evaluate(() => {
+      return localStorage.getItem('cart');
+    });
 
+    expect(localStorageCart).toBe('[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]');
   });
 
   // Checking to make sure that if you remove all of the items from the cart that the cart
   // number in the top right of the screen is 0
-  it.skip('Checking number of items in cart on screen after removing from cart', async () => {
+  it('Checking number of items in cart on screen after removing from cart', async () => {
     console.log('Checking number of items in cart on screen...');
 
     /**
@@ -123,12 +221,16 @@ describe('Basic user flow for Website', () => {
      * Once you have, check to make sure that #cart-count is now 0
      * Remember to remove the .skip from this it once you are finished writing this test.
      */
+    await clickButtonsWithText('Remove from Cart');
+    const cartCountText = await getCartCount();
+
+    expect(cartCountText).toBe('0');
 
   }, 10000);
 
   // Checking to make sure that it remembers us removing everything from the cart
   // after we refresh the page
-  it.skip('Checking number of items in cart on screen after reload', async () => {
+  it('Checking number of items in cart on screen after reload', async () => {
     console.log('Checking number of items in cart on screen after reload...');
 
     /**
@@ -138,12 +240,20 @@ describe('Basic user flow for Website', () => {
      * Also check to make sure that #cart-count is still 0
      * Remember to remove the .skip from this it once you are finished writing this test.
      */
+      await page.reload();
+      await waitForProducts();
+      const allAreAdd = await allButtonsHaveText('Add to Cart');
 
+      expect(allAreAdd).toBe(true);
+
+      const cartCountText = await getCartCount();
+
+      expect(cartCountText).toBe('0');
   }, 10000);
 
   // Checking to make sure that localStorage for the cart is as we'd expect for the
   // cart being empty
-  it.skip('Checking the localStorage to make sure cart is correct', async () => {
+  it('Checking the localStorage to make sure cart is correct', async () => {
     console.log('Checking the localStorage...');
 
     /**
@@ -151,6 +261,11 @@ describe('Basic user flow for Website', () => {
      * At this point he item 'cart' in localStorage should be '[]', check to make sure it is
      * Remember to remove the .skip from this it once you are finished writing this test.
      */
+    const localStorageCart = await page.evaluate(() => {
+      return localStorage.getItem('cart');
+    });
+
+    expect(localStorageCart).toBe('[]');
 
   });
 });
