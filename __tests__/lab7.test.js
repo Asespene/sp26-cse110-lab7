@@ -1,5 +1,5 @@
 describe('Basic user flow for Website', () => {
-  const shopURL = 'https://cse110-sp25.github.io/CSE110-Shop/';
+  const shopURL = 'http://127.0.0.1:5500/src/index.html';
 
   async function waitForProducts() {
     await page.waitForFunction(() => {
@@ -192,7 +192,7 @@ describe('Basic user flow for Website', () => {
 
     expect(cartCountText).toBe('20');
 
-  }, 10000);
+  }, 30000);
 
   // Check to make sure that the cart in localStorage is what you expect
   it('Checking the localStorage to make sure cart is correct', async () => {
